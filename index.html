@@ -803,7 +803,7 @@ window.packlightRevokeTripLinks=async()=>{
 };
 async function packlightHandlePendingInvite(){
  if(!plInviteToken||!currentUser||!cloudReady||!document.getElementById('appShell')||document.getElementById('appShell').classList.contains('hide'))return;
- if(!/^[0-9a-f]{36}-[0-9a-f]{36}$/i.test(plInviteToken)){alert('Invitationslinket har et ugyldigt format.');return}
+ if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(plInviteToken)){alert('Invitationslinket har et ugyldigt format.');return}
  // No membership is created until the recipient confirms.
  if(!confirm('Du er inviteret til en fælles tur i PackLight. Vil du acceptere invitationen?'))return;
  try{
