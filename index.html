@@ -913,14 +913,44 @@ async function packlightHandlePendingInvite(){
   alert('Du er nu tilføjet turen. Velkommen til PackLight Together!');
  }catch(e){alert('Invitationen kunne ikke accepteres. Linket kan være udløbet eller deaktiveret. '+e.message)}
 }
-document.getElementById('packlightSignUpButton')?.addEventListener('click',async()=>{
- const email=document.getElementById('authEmail').value.trim(),password=document.getElementById('authPassword').value;
- if(!email||password.length<8)return alert('Indtast e-mail og en adgangskode på mindst 8 tegn.');
- if(!cloud)return alert('Forbindelsen til Supabase er ikke klar.');
- const {data,error}=await cloud.auth.signUp({email,password,emailRedirectTo:location.origin+location.pathname+(plInviteToken?'?invite='+encodeURIComponent(plInviteToken):'')});
- document.getElementById('authMessage').textContent=error?'Kunne ikke oprette konto: '+error.message:(data.session?'Konto oprettet. Logger ind…':'Konto oprettet. Kontrollér din e-mail for at bekræfte kontoen.');
- if(data.session?.user)await initializeUser(data.session.user);
-});
+// Separate registration mode: prevent accidental login submits during signup.
+let plRegisterMode=false;
+const plSignupButton=document.getElementById('packlightSignUpButton');
+const plAuthForm=document.getElementById('authForm');
+const plLoginButton=document.getElementById('loginButton');
+const plAuthPassword=document.getElementById('authPassword');
+function plSetRegisterMode(enabled){
+ plRegisterMode=enabled;
+ plLoginButton.textContent=enabled?'Opret konto':'Log ind';
+ plSignupButton.textContent=enabled?'Jeg har allerede en konto · Log ind':'Opret PackLight-konto';
+ plAuthPassword.setAttribute('autocomplete',enabled?'new-password':'current-password');
+ $('authMessage').classList.remove('auth-error');
+ $('authMessage').textContent=enabled?'Indtast din e-mail og vælg en adgangskode på mindst 8 tegn.':'Kun inviterede testbrugere har adgang.';
+}
+plSignupButton?.addEventListener('click',()=>plSetRegisterMode(!plRegisterMode));
+// Capture the form before the existing login handler, and stop it for registration.
+plAuthForm.addEventListener('submit',async e=>{
+ if(!plRegisterMode)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const email=$('authEmail').value.trim(),password=plAuthPassword.value;
+ const msg=$('authMessage');
+ if(!email||password.length<8){msg.textContent='Indtast en gyldig e-mail og en adgangskode på mindst 8 tegn.';msg.classList.add('auth-error');return}
+ if(!cloud){msg.textContent='Forbindelsen til Supabase er ikke klar. Prøv igen.';msg.classList.add('auth-error');return}
+ plLoginButton.disabled=true;plSignupButton.disabled=true;
+ msg.classList.remove('auth-error');msg.textContent='Opretter konto…';
+ try{
+  const redirect=location.origin+location.pathname+(plInviteToken?'?invite='+encodeURIComponent(plInviteToken):'');
+  const {data,error}=await cloud.auth.signUp({email,password,options:{emailRedirectTo:redirect}});
+  if(error)throw error;
+  if(data?.session?.user){msg.textContent='Konto oprettet. Logger ind…';await initializeUser(data.session.user)}
+  else {msg.textContent='Hvis adressen kan registreres, modtager du en bekræftelsesmail. Kontrollér også spam. Bekræft mailen, og log derefter ind.';plSetRegisterMode(false);msg.textContent='Kontrollér din e-mail for bekræftelseslinket. Når du har bekræftet, kan du logge ind.';}
+ }catch(err){
+  const raw=err?.message||String(err);
+  msg.textContent=/signups? not allowed|signup is disabled/i.test(raw)?'Ny brugeroprettelse er deaktiveret i Supabase. Slå Allow new users to sign up til for at teste.':'Konto kunne ikke oprettes: '+raw;
+  msg.classList.add('auth-error');
+ }finally{plLoginButton.disabled=false;plSignupButton.disabled=false}
+},true);
+
 
 // PackLight Together: separate cloud tables; never included in personal pushCloud().
 
