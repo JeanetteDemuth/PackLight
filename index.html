@@ -1119,28 +1119,35 @@ async function togetherEditSharedFromModal(id,field,value){
   const categories=box.querySelectorAll('.complete-list-category');openCategories.forEach(index=>{if(categories[index])categories[index].open=true});
  }catch(error){togetherError(error)}
 }
-let plMemberView='complete';
+let plMemberView='categories';
 function plMemberSetView(mode){
  const box=document.getElementById('completePackingModal');
  if(!box||box.dataset.together!=='member')return;
- const previous=plMemberView;
- plMemberView=previous===mode?'categories':mode;
- const cats=[...box.querySelectorAll('.complete-list-category')];
+ const content=box.querySelector('#completePackingContent');
+ const groups=box.querySelector('#pl-member-grouped');
  const flat=box.querySelector('#pl-member-flat');
- const grouped=box.querySelector('#pl-member-grouped');
- if(flat)flat.hidden=plMemberView!=='complete';
- if(grouped)grouped.hidden=plMemberView==='complete';
- cats.forEach(cat=>{
-  let visible=0;
-  cat.querySelectorAll('[data-pl-shared]').forEach(wrapper=>{
-   const packed=!!wrapper.querySelector('.packlight-pack-check input:checked');
-   const shared=wrapper.dataset.plShared==='1';
-   const show=plMemberView==='categories'||plMemberView==='complete'||(plMemberView==='packed'&&packed)||(plMemberView==='shared'&&shared);
-   wrapper.hidden=!show;if(show)visible++;
+ if(!groups||!flat)return;
+ plMemberView=plMemberView===mode?'categories':mode;
+ // Move the actual equipment rows, not copies, so packing and editing continue to work.
+ const rows=[...content.querySelectorAll('[data-pl-shared]')];
+ if(plMemberView==='complete'){
+  rows.forEach(row=>{if(!row._plOriginalParent)row._plOriginalParent=row.parentElement;flat.appendChild(row);row.hidden=false});
+  groups.hidden=true;flat.hidden=false;
+ }else{
+  rows.forEach(row=>{if(row._plOriginalParent)row._plOriginalParent.appendChild(row)});
+  flat.hidden=true;groups.hidden=false;
+  [...groups.querySelectorAll('.complete-list-category')].forEach(cat=>{
+   let visible=0;
+   cat.querySelectorAll('[data-pl-shared]').forEach(row=>{
+    const packed=!!row.querySelector('.packlight-pack-check input:checked');
+    const shared=row.dataset.plShared==='1';
+    const show=plMemberView==='categories'||(plMemberView==='packed'&&packed)||(plMemberView==='shared'&&shared);
+    row.hidden=!show;if(show)visible++;
+   });
+   cat.hidden=!visible;
+   if(plMemberView==='packed'||plMemberView==='shared')cat.open=true;
   });
-  cat.hidden=!visible;
-  if(plMemberView==='packed'||plMemberView==='shared')cat.open=true;
- });
+ }
  box.querySelectorAll('[data-pl-view]').forEach(btn=>btn.setAttribute('aria-pressed',String(plMemberView===btn.dataset.plView)));
 }
 function togetherOpenMemberPacking(userId){
@@ -1151,7 +1158,7 @@ function togetherOpenMemberPacking(userId){
  const items=[...personal,...shared,...priv];
  const total=items.reduce((n,i)=>n+Number(i.weight_g||0)*Number(i.quantity||1),0);
  const groups=[...new Set(items.map(togetherItemCategory))];
- const content=`<p class="muted">${esc(t.name)} · Personligt udstyr og fælles udstyr, som ${esc(togetherFirstName(member.display_name))} bærer${priv.length?' · inkl. dit private udstyr':''}</p><div class="pl-member-actions"><button type="button" data-pl-view="packed" onclick="plMemberSetView('packed')"><span>Pakket</span><strong>${items.filter(i=>i.packed).length}/${items.length}</strong></button><button type="button" data-pl-view="shared" onclick="plMemberSetView('shared')"><span>Fælles udstyr</span><strong>${shared.length}</strong></button><button type="button" data-pl-view="complete" onclick="plMemberSetView('complete')"><span>Komplet pakkeliste</span><strong>☷</strong></button></div>${packlightWeightControl()}${togetherModalAddControls(userId)}<p class="muted complete-hint">Tryk på en kategori og et stykke udstyr for at se eller redigere.</p>${groups.map(cat=>{const subset=items.filter(i=>togetherItemCategory(i)===cat);return `<details class="complete-list-category" open><summary><span>${esc(cat)}</span><span class="complete-category-right"><strong class="pl-optional-weight">${fmt(subset.reduce((n,i)=>n+Number(i.weight_g||0)*Number(i.quantity||1),0))}</strong><span class="complete-chevron">⌄</span></span></summary><div class="complete-category-body">${subset.map(i=>`<div data-pl-shared="${i.kind==='shared'?'1':'0'}">${togetherBagRow({...i,_scope:priv.includes(i)?'private':i.kind==='shared'?'shared':'personal'},userId)}</div>`).join('')}</div></details>`}).join('')||'<p class="muted">Intet udstyr endnu.</p>'}</div>`;
+ const content=`<p class="muted">${esc(t.name)} · Personligt udstyr og fælles udstyr, som ${esc(togetherFirstName(member.display_name))} bærer${priv.length?' · inkl. dit private udstyr':''}</p><div class="pl-member-actions"><button type="button" data-pl-view="packed" onclick="plMemberSetView('packed')"><span>Pakket</span><strong>${items.filter(i=>i.packed).length}/${items.length}</strong></button><button type="button" data-pl-view="shared" onclick="plMemberSetView('shared')"><span>Fælles udstyr</span><strong>${shared.length}</strong></button><button type="button" data-pl-view="complete" onclick="plMemberSetView('complete')"><span>Komplet pakkeliste</span><strong>☷</strong></button></div>${packlightWeightControl()}${togetherModalAddControls(userId)}<p class="muted complete-hint">Tryk på en kategori og et stykke udstyr for at se eller redigere.</p><div id="pl-member-flat" hidden></div><div id="pl-member-grouped">${groups.map(cat=>{const subset=items.filter(i=>togetherItemCategory(i)===cat);return `<details class="complete-list-category" open><summary><span>${esc(cat)}</span><span class="complete-category-right"><strong class="pl-optional-weight">${fmt(subset.reduce((n,i)=>n+Number(i.weight_g||0)*Number(i.quantity||1),0))}</strong><span class="complete-chevron">⌄</span></span></summary><div class="complete-category-body">${subset.map(i=>`<div data-pl-shared="${i.kind==='shared'?'1':'0'}">${togetherBagRow({...i,_scope:priv.includes(i)?'private':i.kind==='shared'?'shared':'personal'},userId)}</div>`).join('')}</div></details>`}).join('')||'<p class="muted">Intet udstyr endnu.</p>'}</div></div>`;
  $('completePackingTitle').textContent=togetherFirstName(member.display_name)+'s pakkeliste · '+t.name;
  $('completePackingContent').innerHTML=content;
  const box=$('completePackingModal');box.dataset.together='member';box.dataset.member=userId;box.classList.remove('hide');box.classList.toggle('pl-show-weight',packlightShowWeight());box.dataset.plExpanded='0';plMemberView='categories';
