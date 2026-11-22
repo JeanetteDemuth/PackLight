@@ -1012,7 +1012,7 @@ async function packlightLoadWeather(tripId){
  if(!trip.destination||!Number.isFinite(lat)||!Number.isFinite(lon)||(!lat&&!lon)){el.textContent='Angiv en præcis destination under Turinformation for at se vejret her.';return;}
  el.textContent='Henter vejrudsigten…';
  try{
-  const url='https://api.open-meteo.com/v1/forecast?latitude='+encodeURIComponent(lat)+'&longitude='+encodeURIComponent(lon)+'&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=16';
+  const url='https://api.open-meteo.com/v1/forecast?latitude='+encodeURIComponent(lat)+'&longitude='+encodeURIComponent(lon)+'&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max&timezone=auto&forecast_days=16';
   const response=await fetch(url);if(!response.ok)throw Error('Vejrtjenesten svarer ikke');
   const data=await response.json(),daily=data.daily;if(!daily||!daily.time)throw Error('Ingen prognose tilgængelig');
   if(!el.isConnected||String(togetherSelected)!==String(tripId))return;
@@ -1020,7 +1020,21 @@ async function packlightLoadWeather(tripId){
   const rows=daily.time.map((date,i)=>({date,i})).filter(x=>x.date>=from&&x.date<=to);
   if(!rows.length){el.textContent='Vejrudsigten er endnu ikke tilgængelig for turens datoer. Prøv igen tættere på afrejse (op til 16 dage før).';return;}
   const weatherName=c=>c===0?'Klart':c<=3?'Let skyet':c<=48?'Tåge':c<=67?'Regn':c<=77?'Sne':c<=82?'Byger':c<=86?'Snebyger':'Torden';
-  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px">'+rows.map(({date,i})=>'<div style="border:1px solid #dce5da;border-radius:10px;padding:10px;background:#fff"><strong>'+new Date(date+'T12:00:00').toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'})+'</strong><div style="margin:6px 0">'+weatherName(daily.weather_code[i])+'</div><div>🌡️ '+Math.round(daily.temperature_2m_min[i])+'–'+Math.round(daily.temperature_2m_max[i])+' °C</div><div>🌧️ '+(daily.precipitation_probability_max[i]??'–')+' %</div><div>💨 '+Math.round(daily.wind_speed_10m_max[i])+' km/t</div></div>').join('')+'</div><small style="display:block;margin-top:8px;color:#68786c">Prognose: Open-Meteo. Vejret kan ændre sig – kontrollér igen inden afrejse.</small>';
+  const value=(v,suffix='')=>v==null?'Ikke oplyst':String(Math.round(v))+suffix;
+  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px">'+rows.map(({date,i})=>{
+   const day=new Date(date+'T12:00:00').toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'});
+   return '<details class="pl-weather-day" style="border:1px solid #dce5da;border-radius:10px;background:#fff;overflow:hidden">'+
+    '<summary style="cursor:pointer;padding:11px;list-style-position:inside;touch-action:manipulation"><strong>'+day+'</strong><div style="margin:6px 0">'+weatherName(daily.weather_code[i])+'</div><div>🌡️ '+value(daily.temperature_2m_min[i],'°')+' – '+value(daily.temperature_2m_max[i],'°')+'</div><div>🌧️ '+value(daily.precipitation_probability_max[i],' %')+'</div><small style="color:#56705e">Tryk for detaljer ▾</small></summary>'+
+    '<div style="border-top:1px solid #e5ebe2;padding:10px 12px;font-size:13px;line-height:1.9">'+
+    '<div><strong>Vejr:</strong> '+weatherName(daily.weather_code[i])+'</div>'+
+    '<div><strong>Laveste temperatur:</strong> '+value(daily.temperature_2m_min[i],' °C')+'</div>'+
+    '<div><strong>Højeste temperatur:</strong> '+value(daily.temperature_2m_max[i],' °C')+'</div>'+
+    '<div><strong>Risiko for nedbør:</strong> '+value(daily.precipitation_probability_max[i],' %')+'</div>'+
+    '<div><strong>Forventet nedbør:</strong> '+value(daily.precipitation_sum?.[i],' mm')+'</div>'+
+    '<div><strong>Maks. vind:</strong> '+value(daily.wind_speed_10m_max[i],' km/t')+'</div>'+
+    '<div><strong>Vindstød:</strong> '+value(daily.wind_gusts_10m_max?.[i],' km/t')+'</div></div></details>';
+  }).join('')+'</div><small style="display:block;margin-top:8px;color:#68786c">Tryk på en dag for flere vejrdetaljer. Prognose: Open-Meteo. Kontrollér igen inden afrejse.</small>';
+
  }catch(err){if(el.isConnected)el.textContent='Vejrudsigten kunne ikke hentes lige nu. Prøv igen senere, eller brug Detaljeret vejrkort.';}
 }
 function packlightWeatherUrl(lat,lon){if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon)))return '';return 'https://www.windy.com/?'+Number(lat).toFixed(5)+','+Number(lon).toFixed(5)+',11'}
